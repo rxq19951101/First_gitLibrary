@@ -41,7 +41,7 @@ ComplementaryFilterROS::ComplementaryFilterROS(
     const ros::NodeHandle& nh_private):
   nh_(nh),
   nh_private_(nh_private),
-  initialized_filter_(false)
+  initialized_filter_(false)               //首先初始化，subscribe一个数据 Imu_data from sensor. 如果有条件的情况下 发布三个信息，目前看来只发布了imu/data
 {
   ROS_INFO("Starting ComplementaryFilterROS");
   initializeParams();
@@ -79,7 +79,7 @@ ComplementaryFilterROS::ComplementaryFilterROS(
   else
   {
     imu_subscriber_->registerCallback(
-        &ComplementaryFilterROS::imuCallback, this);
+        &ComplementaryFilterROS::imuCallback, this);   //在这里订阅到信息用imuCallback函数进行处理
   }
 }
 
@@ -88,7 +88,7 @@ ComplementaryFilterROS::~ComplementaryFilterROS()
   ROS_INFO("Destroying ComplementaryFilterROS");
 }
 
-void ComplementaryFilterROS::initializeParams()
+void ComplementaryFilterROS::initializeParams()     //参数初始话，定义值
 {
   double gain_acc;
   double gain_mag;
@@ -100,8 +100,8 @@ void ComplementaryFilterROS::initializeParams()
     fixed_frame_ = "odom";
   if (!nh_private_.getParam ("use_mag", use_mag_))
     use_mag_ = false;
-  if (!nh_private_.getParam ("publish_tf", publish_tf_))
-    publish_tf_ = false;
+  if (!nh_private_.getParam ("publish_tf", publish_tf_))       //尝试发布 rpy信息，不行的话撤回
+    publish_tf_ = true;
   if (!nh_private_.getParam ("reverse_tf", reverse_tf_))
     reverse_tf_ = false;
   if (!nh_private_.getParam ("constant_dt", constant_dt_))
@@ -151,7 +151,7 @@ void ComplementaryFilterROS::initializeParams()
   }
 }
 
-void ComplementaryFilterROS::imuCallback(const ImuMsg::ConstPtr& imu_msg_raw)
+void ComplementaryFilterROS::imuCallback(const ImuMsg::ConstPtr& imu_msg_raw)   //call_back函数，用于对数据进行处理，此处没有磁用的是这个函数
 {
   const geometry_msgs::Vector3& a = imu_msg_raw->linear_acceleration;
   const geometry_msgs::Vector3& w = imu_msg_raw->angular_velocity;
@@ -178,7 +178,7 @@ void ComplementaryFilterROS::imuCallback(const ImuMsg::ConstPtr& imu_msg_raw)
   filter_.update(a.x, a.y, a.z, w.x, w.y, w.z, dt);
 
   // Publish state.
-  publish(imu_msg_raw);
+  publish(imu_msg_raw);        //将数据放入publish函数中再次处理
 }
 
 void ComplementaryFilterROS::imuMagCallback(const ImuMsg::ConstPtr& imu_msg_raw,
@@ -224,7 +224,7 @@ tf::Quaternion ComplementaryFilterROS::hamiltonToTFQuaternion(
 }
 
 void ComplementaryFilterROS::publish(
-    const sensor_msgs::Imu::ConstPtr& imu_msg_raw)
+    const sensor_msgs::Imu::ConstPtr& imu_msg_raw)                 //这里将值的四元数展出，然后用算法得出最新的角速度值
 {
   // Get the orientation:
   double q0, q1, q2, q3;
@@ -254,7 +254,7 @@ void ComplementaryFilterROS::publish(
     imu_msg->angular_velocity.z -= filter_.getAngularVelocityBiasZ();
   }
 
-  imu_publisher_.publish(imu_msg);
+  imu_publisher_.publish(imu_msg);     //这里publishImu的数据
 
   if (publish_debug_topics_)
   {
@@ -265,7 +265,7 @@ void ComplementaryFilterROS::publish(
       tf::Matrix3x3 M;
       M.setRotation(q);
       M.getRPY(rpy.vector.x, rpy.vector.y, rpy.vector.z);
-      rpy_publisher_.publish(rpy);
+      rpy_publisher_.publish(rpy);            //这里publish roll,pitch,yaw的数据
 
       // Publish whether we are in the steady state, when doing bias estimation
       if (filter_.getDoBiasEstimation())
